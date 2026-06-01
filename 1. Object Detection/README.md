@@ -1,86 +1,257 @@
-# Local YOLO Object Detection Training
+# YOLO11 Object Detection - Documentation
 
-Train a YOLO object detection model locally on your GPU (RTX 4050) using an
-annotated dataset exported from Roboflow. No API key or internet training needed.
+This project trains a YOLO11 object detection model for vehicle-part detection.
+The results documented here are taken from the current local run artifacts in
+`runs/detect/train/`, especially `results.csv` and `args.yaml`.
 
-## Environment (already set up)
+## What This Model Does
 
-- Python virtual environment in `.venv/`
-- PyTorch 2.6.0 with CUDA 12.4 (GPU-enabled)
-- Ultralytics (YOLO)
+The model predicts bounding boxes for 9 vehicle-part classes:
 
-To verify the GPU is detected:
+| Class | Annotation count |
+| --- | ---: |
+| Fog Lights | 605 |
+| Headlights | 1,184 |
+| Plate | 456 |
+| Rear Window | 123 |
+| Side-Mirror | 1,207 |
+| Tail Lights | 365 |
+| Tire | 2,043 |
+| Window | 1,816 |
+| Windshield | 957 |
+
+Total labeled objects across all splits: `8,756`.
+
+## Project Layout
+
+```text
+1. Object Detection/
+|-- check_dataset.py
+|-- dataset/
+|   |-- data.yaml
+|   |-- train/images/ and train/labels/
+|   |-- valid/images/ and valid/labels/
+|   `-- test/images/ and test/labels/
+|-- predict.py
+|-- README.md
+|-- runs/detect/
+|   |-- predict/
+|   |   `-- annotated prediction images
+|   `-- train/
+|       |-- args.yaml
+|       |-- results.csv
+|       |-- results.png
+|       |-- confusion_matrix.png
+|       |-- confusion_matrix_normalized.png
+|       |-- BoxP_curve.png, BoxR_curve.png, BoxF1_curve.png, BoxPR_curve.png
+|       |-- train_batch*.jpg and val_batch*_*.jpg
+|       `-- weights/best.pt and weights/last.pt
+|-- train.py
+`-- yolo11n.pt
+```
+
+Note: `dataset/`, `runs/`, `.venv/`, and `*.pt` files are ignored by git in this
+folder. The documentation references local artifacts that exist on this machine.
+If this project is shared, export the run artifacts separately.
+
+## Dataset Summary
+
+Dataset source metadata in `dataset/data.yaml`:
+
+| Field | Value |
+| --- | --- |
+| Format | YOLO detection, `data.yaml` plus image/label folders |
+| Roboflow project | `objectdetection-7jqlt` |
+| Roboflow version | `1` |
+| Number of classes | `9` |
+
+Split quality checks from the current local dataset:
+
+| Split | Images | Label files | Objects | Empty labels | Missing labels | Orphan labels |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Train | 630 | 630 | 7,667 | 0 | 0 | 0 |
+| Valid | 60 | 60 | 737 | 0 | 0 | 0 |
+| Test | 30 | 30 | 352 | 0 | 0 | 0 |
+
+The dataset is structurally clean: every image has a matching label file and no
+orphan label files were found.
+
+## Environment
+
+This folder uses its own Python virtual environment:
 
 ```powershell
+cd "1. Object Detection"
 .\.venv\Scripts\python.exe -c "import torch; print(torch.cuda.is_available())"
 ```
 
-Should print `True`.
+Expected GPU result: `True` when CUDA-enabled PyTorch is installed. CPU training
+also works but is slower.
 
-## Step 1 - Export your dataset from Roboflow
+## Training Configuration
 
-1. In Roboflow, open your project and click **Versions** (create/Generate one if needed).
-2. Click **Download Dataset**.
-3. Choose format **YOLOv8**.
-4. Select **"Download zip to computer"** (not the code/API option).
-5. Unzip it into a folder named `dataset` in this project so you have:
+The current run was launched by `train.py` and saved to `runs/detect/train/`.
+The full resolved configuration is saved in `runs/detect/train/args.yaml`.
 
-```
-dataset/
-├── data.yaml
-├── train/   (images/ + labels/)
-├── valid/   (images/ + labels/)
-└── test/    (images/ + labels/)
-```
+| Setting | Value |
+| --- | --- |
+| Task | Detection |
+| Base model | `yolo11n.pt` |
+| Data file | `dataset/data.yaml` |
+| Configured epochs | 100 |
+| Completed epochs in log | 72 |
+| Image size | 640 |
+| Batch size | 8 |
+| Early stopping patience | 25 |
+| Device | `0` GPU |
+| Optimizer | `auto` |
+| AMP | `true` |
+| Seed | `0` |
+| Output folder | `runs/detect/train/` |
 
-## Step 2 - Train
+Run training:
 
 ```powershell
+cd "1. Object Detection"
 .\.venv\Scripts\python.exe train.py
 ```
 
-Training automatically runs a dataset validation check first (see Step 2a). If
-the dataset has blocking errors, training stops before wasting any time.
+`train.py` validates the dataset first by calling `check_dataset.py`. If blocking
+errors are found, training stops before any GPU time is spent.
 
-Adjust the settings at the top of `train.py` if needed:
-- `MODEL` - `yolo11n.pt` (nano) is best for a 6 GB laptop GPU. Use `yolo11s.pt` for a bit more accuracy if memory allows.
-- `BATCH` - start at 8; lower to 4 if you hit an out-of-memory error.
-- `EPOCHS` - 100 is a reasonable starting point.
+## Training Results
 
-Results (weights, plots, metrics) are saved to `runs/detect/train/`.
-The best checkpoint is `runs/detect/train/weights/best.pt`.
+Primary metric: `mAP50-95(B)`. This is stricter than `mAP50` because it averages
+box quality over multiple IoU thresholds from 0.50 to 0.95.
 
-## Step 2a - Validate the dataset (optional, runs automatically)
+| Metric | Best epoch 47 | Final epoch 72 |
+| --- | ---: | ---: |
+| Precision (B) | 0.8329 | 0.8408 |
+| Recall (B) | 0.7587 | 0.7306 |
+| mAP50 (B) | 0.8169 | 0.8002 |
+| mAP50-95 (B) | 0.6442 | 0.6379 |
 
-`train.py` calls this for you, but you can run it on its own any time to check
-your Roboflow export is correct:
+The best checkpoint is:
 
-```powershell
-.\.venv\Scripts\python.exe check_dataset.py
+```text
+runs/detect/train/weights/best.pt
 ```
 
-It verifies:
-- `data.yaml` exists and lists class names
-- each split (train/valid/test) has matching `images/` and `labels/` folders
-- every image has a label file (flags missing labels, empty labels, orphans)
-- label files are well-formed (5 columns, valid class ids, normalized coords)
-- each class actually appears in the annotations
+Use `best.pt` for inference unless you specifically need the final checkpoint
+`last.pt`. Both checkpoint files are about `5.22 MB`.
 
-It exits with code 0 when the dataset is usable, 1 when there are blocking
-errors. Warnings (like a few unlabelled images) don't block training.
+## Result Figures
 
-## Step 3 - Run inference
+Training curves:
+
+![Training results](runs/detect/train/results.png)
+
+Confusion matrix:
+
+![Confusion matrix](runs/detect/train/confusion_matrix.png)
+
+Normalized confusion matrix:
+
+![Normalized confusion matrix](runs/detect/train/confusion_matrix_normalized.png)
+
+Precision-recall curve:
+
+![Box precision-recall curve](runs/detect/train/BoxPR_curve.png)
+
+Additional curves available in the run folder:
+
+| File | Meaning |
+| --- | --- |
+| `BoxP_curve.png` | Precision at confidence thresholds |
+| `BoxR_curve.png` | Recall at confidence thresholds |
+| `BoxF1_curve.png` | F1 score at confidence thresholds |
+| `BoxPR_curve.png` | Precision-recall tradeoff |
+| `labels.jpg` | Label distribution and bounding-box distribution |
+| `train_batch*.jpg` | Augmented training batch samples |
+| `val_batch*_labels.jpg` | Validation images with ground-truth labels |
+| `val_batch*_pred.jpg` | Validation images with model predictions |
+
+## Inference
+
+The inference script uses:
+
+| Setting | Value |
+| --- | --- |
+| Weights | `runs/detect/train/weights/best.pt` |
+| Source | `dataset/test/images` |
+| Confidence threshold | 0.25 |
+| Image size | 640 |
+| Output folder | `runs/detect/predict/` |
+
+Run prediction:
 
 ```powershell
+cd "1. Object Detection"
 .\.venv\Scripts\python.exe predict.py
 ```
 
-Annotated predictions are saved to `runs/detect/predict/`.
+The current local prediction folder contains:
 
-## Tips
+| Output | Count | Location |
+| --- | ---: | --- |
+| Annotated images | 30 | `runs/detect/predict/` |
+| Prediction text files | 0 | Not generated by the current `predict.py` settings |
 
-- If you see a CUDA out-of-memory error, lower `BATCH` (8 -> 4 -> 2) or
-  reduce `IMG_SIZE` (640 -> 512 -> 416) in `train.py`.
-- Review `runs/detect/train/results.png` and `confusion_matrix.png` to judge
-  training quality.
-- `mAP50-95` is the main accuracy metric (higher is better).
+The detection script saves annotated images only. If you need YOLO-format
+prediction text files, add `save_txt=True` and `save_conf=True` to the
+`model.predict(...)` call in `predict.py`.
+
+## How To Read The Metrics
+
+| Metric | Meaning |
+| --- | --- |
+| Precision | Of the boxes predicted by the model, how many were correct |
+| Recall | Of the real labeled objects, how many the model found |
+| mAP50 | Mean average precision at IoU 0.50 |
+| mAP50-95 | Mean average precision averaged across IoU 0.50 to 0.95 |
+| Box loss | Bounding-box localization loss; lower is better |
+| Class loss | Classification loss for detected boxes; lower is better |
+| DFL loss | Distribution focal loss used for box quality; lower is better |
+
+For this project, `mAP50-95(B)` is the main score to report. `mAP50` is useful
+for a looser view of object localization performance.
+
+## Dataset Validation
+
+Run the checker directly:
+
+```powershell
+cd "1. Object Detection"
+.\.venv\Scripts\python.exe check_dataset.py
+```
+
+The checker verifies:
+
+- `data.yaml` exists and defines class names.
+- `train`, `valid`, and `test` splits have matching `images/` and `labels/` folders.
+- Every image has a matching label file.
+- Label files have valid YOLO detection rows: `class x_center y_center width height`.
+- Class ids are valid and coordinates are normalized from `0` to `1`.
+- Every class appears in the annotations.
+
+## Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| CUDA out of memory | Lower `BATCH` from 8 to 4 or 2 in `train.py`. |
+| Training is too slow | Use GPU device `0`; reduce `IMG_SIZE` to 512 if acceptable. |
+| Bad or missing predictions | Confirm `runs/detect/train/weights/best.pt` exists before running `predict.py`. |
+| Dataset validation fails | Fix the exact file or label path reported by `check_dataset.py`. |
+| Metrics look high but examples look wrong | Inspect `val_batch*_pred.jpg` and both confusion matrix files. |
+
+## Reproducible Workflow
+
+```powershell
+cd "1. Object Detection"
+.\.venv\Scripts\python.exe check_dataset.py
+.\.venv\Scripts\python.exe train.py
+.\.venv\Scripts\python.exe predict.py
+```
+
+Report the model using the best-validation result: `mAP50-95(B) = 0.6442` at
+epoch `47`.
