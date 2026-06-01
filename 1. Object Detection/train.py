@@ -14,16 +14,20 @@ from ultralytics import YOLO
 
 from check_dataset import main as validate_dataset
 
+# Anchor paths to this script's folder so it runs from any working directory.
+SCRIPT_DIR = Path(__file__).resolve().parent
+
 # ---------------------------------------------------------------------------
 # Config -- edit these to match your setup
 # ---------------------------------------------------------------------------
-DATA_YAML = "dataset/data.yaml"   # path to the data.yaml from your Roboflow export
-MODEL = "yolo11n.pt"              # nano model: best fit for a 6 GB laptop GPU
+DATA_YAML = SCRIPT_DIR / "dataset" / "data.yaml"  # data.yaml from your Roboflow export
+MODEL = str(SCRIPT_DIR / "yolo11m.pt")  # medium model: more accurate, heavier on VRAM
 EPOCHS = 100
 IMG_SIZE = 640
-BATCH = 8                         # keep small for 6 GB VRAM; lower to 4 if OOM
+BATCH = 4                         # medium on 6 GB VRAM; lower to 2 if you hit OOM
 PATIENCE = 25                     # early-stopping patience
 DEVICE = 0                        # 0 = first GPU, or "cpu"
+RUN_NAME = "train_yolo11m"        # output folder name under runs/detect/
 # ---------------------------------------------------------------------------
 
 
@@ -54,6 +58,8 @@ def main():
         patience=PATIENCE,
         device=DEVICE,
         plots=True,
+        project=str(SCRIPT_DIR / "runs" / "detect"),
+        name=RUN_NAME,
     )
 
     # Validate the best checkpoint on the validation split
@@ -61,7 +67,7 @@ def main():
     print("\nValidation summary:")
     print(f"  mAP50-95: {metrics.box.map:.4f}")
     print(f"  mAP50:    {metrics.box.map50:.4f}")
-    print("Results saved under runs/detect/train/")
+    print(f"Results saved under runs/detect/{RUN_NAME}/")
 
 
 if __name__ == "__main__":

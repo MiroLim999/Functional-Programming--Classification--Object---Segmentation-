@@ -8,11 +8,14 @@ Annotated images are saved under runs/detect/predict/.
 from pathlib import Path
 from ultralytics import YOLO
 
+# Anchor paths to this script's folder so it runs from any working directory.
+SCRIPT_DIR = Path(__file__).resolve().parent
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-WEIGHTS = "runs/detect/train/weights/best.pt"  # trained weights
-SOURCE = "dataset/test/images"                 # folder, single image, or video
+WEIGHTS = SCRIPT_DIR / "runs" / "detect" / "train" / "weights" / "best.pt"  # trained weights
+SOURCE = SCRIPT_DIR / "dataset" / "test" / "images"  # folder, single image, or video
 CONF = 0.25                                     # confidence threshold
 IMG_SIZE = 640
 # ---------------------------------------------------------------------------
@@ -28,10 +31,12 @@ def main():
 
     model = YOLO(str(weights))
     results = model.predict(
-        source=SOURCE,
+        source=str(SOURCE),
         conf=CONF,
         imgsz=IMG_SIZE,
         save=True,
+        project=str(SCRIPT_DIR / "runs" / "detect"),
+        name="predict",
     )
 
     # Print a per-image detection count

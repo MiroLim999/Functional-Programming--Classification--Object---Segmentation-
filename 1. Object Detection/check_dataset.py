@@ -26,6 +26,10 @@ import yaml
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
 
+# Anchor default paths to this script's folder so it works regardless of the
+# current working directory (terminal, VS Code "Run" button, etc.).
+SCRIPT_DIR = Path(__file__).resolve().parent
+
 
 class Reporter:
     """Collects errors (blocking) and warnings (non-blocking)."""
@@ -214,8 +218,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Validate a YOLO dataset.")
     parser.add_argument(
         "--data",
-        default="dataset/data.yaml",
-        help="Path to data.yaml (default: dataset/data.yaml)",
+        default=str(SCRIPT_DIR / "dataset" / "data.yaml"),
+        help="Path to data.yaml (default: <script dir>/dataset/data.yaml)",
     )
     args = parser.parse_args()
 
