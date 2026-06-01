@@ -30,10 +30,16 @@ def main():
             f"Could not find trained weights at {weights.resolve()}.\n"
             "Train the model first with train.py."
         )
+    source = Path(SOURCE)
+    if not source.exists():
+        raise FileNotFoundError(
+            f"Could not find SOURCE at {source.resolve()}.\n"
+            "Update SOURCE to an existing image/folder/video path."
+        )
 
     model = YOLO(str(weights))
     results = model.predict(
-        source=str(SOURCE),
+        source=str(source),
         conf=CONF,
         imgsz=IMG_SIZE,
         save=True,

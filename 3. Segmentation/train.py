@@ -10,9 +10,11 @@ Usage:
 from pathlib import Path
 import sys
 
+import yaml
 from ultralytics import YOLO
 
 from check_dataset import main as validate_dataset
+from check_dataset import resolve_split_dir
 
 # Anchor paths to this script's folder so it runs from any working directory.
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -49,9 +51,21 @@ def main():
         )
     print()
 
+    # Build a training yaml with split paths resolved to existing image dirs.
+    with open(data_path, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+    resolved_cfg = dict(cfg)
+    for key in ("train", "val", "test"):
+        split_dir = resolve_split_dir(data_path, cfg, key)
+        if split_dir and split_dir.exists():
+            resolved_cfg[key] = str((split_dir / "images").resolve())
+    resolved_data_path = data_path.with_name("data.train_resolved.yaml")
+    with open(resolved_data_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(resolved_cfg, f, sort_keys=False, allow_unicode=True)
+
     model = YOLO(MODEL)
     model.train(
-        data=str(data_path),
+        data=str(resolved_data_path),
         epochs=EPOCHS,
         imgsz=IMG_SIZE,
         batch=BATCH,

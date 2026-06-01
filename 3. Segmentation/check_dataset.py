@@ -89,18 +89,34 @@ def get_class_names(cfg: dict, rep: Reporter) -> list[str]:
 
 
 def resolve_split_dir(data_path: Path, cfg: dict, key: str) -> Path | None:
-    """Resolve a split path from data.yaml relative to the yaml location."""
+    """Resolve a split path from data.yaml across common Roboflow layouts."""
     raw = cfg.get(key)
     if not raw:
         return None
-    base = data_path.parent
-    p = Path(raw)
-    if not p.is_absolute():
-        p = (base / p).resolve()
-    # Roboflow points these at the images/ folder; step up to the split root.
-    if p.name == "images":
-        return p.parent
-    return p
+
+    raw_path = Path(raw)
+    candidates: list[Path] = []
+    if raw_path.is_absolute():
+        candidates.append(raw_path)
+    else:
+        # Normal case: relative to data.yaml directory.
+        candidates.append((data_path.parent / raw_path).resolve())
+        # Some Roboflow exports include "../train/images" even when splits are
+        # inside the same dataset/ folder as data.yaml.
+        while raw_path.parts and raw_path.parts[0] == "..":
+            raw_path = Path(*raw_path.parts[1:])
+        if raw_path.parts:
+            candidates.append((data_path.parent / raw_path).resolve())
+
+    for p in candidates:
+        # Roboflow points split paths to images/.
+        split_root = p.parent if p.name == "images" else p
+        if split_root.exists():
+            return split_root
+
+    # Fallback to first candidate for clearer downstream error paths.
+    p = candidates[0]
+    return p.parent if p.name == "images" else p
 
 
 def split_image_label_dirs(split_dir: Path) -> tuple[Path, Path]:
