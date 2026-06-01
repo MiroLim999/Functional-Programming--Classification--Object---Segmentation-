@@ -1,12 +1,26 @@
-# YOLO11 Object Detection - Documentation
+# YOLO11 Object Detection Documentation
 
-This project trains a YOLO11 object detection model for vehicle-part detection.
-The results documented here are taken from the current local run artifacts in
-`runs/detect/train/`, especially `results.csv` and `args.yaml`.
+## 1. Title Page
 
-## What This Model Does
+**Project Title:** YOLO11 Object Detection for Vehicle-Part Detection  
+**Project Type:** Machine Learning / Computer Vision  
+**Model Used:** YOLO11 Nano (`yolo11n.pt`)  
+**Task:** Object detection  
+**Main Output:** Annotated images with bounding boxes around detected vehicle parts  
 
-The model predicts bounding boxes for 9 vehicle-part classes:
+This project trains and evaluates a YOLO11 object detection model that can identify
+important vehicle parts from images. The final trained model is saved as
+`runs/detect/train/weights/best.pt` and is used by `predict.py` to generate
+annotated prediction images.
+
+## 2. Project Overview
+
+The goal of this project is to detect specific vehicle parts in car images using
+a YOLO-based object detection model. Object detection is different from simple
+classification because the model does not only predict what object is present,
+but also where it is located in the image using bounding boxes.
+
+The model detects 9 vehicle-part classes:
 
 | Class | Annotation count |
 | --- | ---: |
@@ -20,52 +34,23 @@ The model predicts bounding boxes for 9 vehicle-part classes:
 | Window | 1,816 |
 | Windshield | 957 |
 
-Total labeled objects across all splits: `8,756`.
+Total labeled objects across all dataset splits: `8,756`.
 
-## Project Layout
+## 3. Dataset Description
 
-```text
-1. Object Detection/
-|-- check_dataset.py
-|-- dataset/
-|   |-- data.yaml
-|   |-- train/images/ and train/labels/
-|   |-- valid/images/ and valid/labels/
-|   `-- test/images/ and test/labels/
-|-- predict.py
-|-- README.md
-|-- runs/detect/
-|   |-- predict/
-|   |   `-- annotated prediction images
-|   `-- train/
-|       |-- args.yaml
-|       |-- results.csv
-|       |-- results.png
-|       |-- confusion_matrix.png
-|       |-- confusion_matrix_normalized.png
-|       |-- BoxP_curve.png, BoxR_curve.png, BoxF1_curve.png, BoxPR_curve.png
-|       |-- train_batch*.jpg and val_batch*_*.jpg
-|       `-- weights/best.pt and weights/last.pt
-|-- train.py
-`-- yolo11n.pt
-```
-
-Note: `dataset/`, `runs/`, `.venv/`, and `*.pt` files are ignored by git in this
-folder. The documentation references local artifacts that exist on this machine.
-If this project is shared, export the run artifacts separately.
-
-## Dataset Summary
-
-Dataset source metadata in `dataset/data.yaml`:
+The dataset is stored in YOLO detection format. It contains image folders, label
+folders, and a `data.yaml` file that defines the dataset paths and class names.
+The dataset metadata indicates that it came from a Roboflow project.
 
 | Field | Value |
 | --- | --- |
-| Format | YOLO detection, `data.yaml` plus image/label folders |
+| Dataset format | YOLO detection |
+| Dataset config file | `dataset/data.yaml` |
 | Roboflow project | `objectdetection-7jqlt` |
 | Roboflow version | `1` |
 | Number of classes | `9` |
 
-Split quality checks from the current local dataset:
+Dataset split summary:
 
 | Split | Images | Label files | Objects | Empty labels | Missing labels | Orphan labels |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -73,25 +58,64 @@ Split quality checks from the current local dataset:
 | Valid | 60 | 60 | 737 | 0 | 0 | 0 |
 | Test | 30 | 30 | 352 | 0 | 0 | 0 |
 
-The dataset is structurally clean: every image has a matching label file and no
-orphan label files were found.
+The dataset is structurally clean because every image has a matching label file,
+there are no missing labels, and there are no orphan label files.
 
-## Environment
+## 4. Methodology
 
-This folder uses its own Python virtual environment:
+The project workflow has three main steps: dataset validation, model training,
+and model prediction.
+
+### Dataset Validation
+
+Before training, `check_dataset.py` verifies that the dataset is usable. It checks
+whether `data.yaml` exists, whether the train, validation, and test folders are
+present, and whether each image has a matching label file. It also checks that
+YOLO label rows follow the required format:
+
+```text
+class_id x_center y_center width height
+```
+
+The script also validates that class IDs are within range and bounding-box values
+are normalized between `0` and `1`.
+
+### Model Training
+
+Training is handled by `train.py`. The script first runs the dataset checker. If
+the dataset has blocking errors, training stops before using GPU time. If the
+dataset passes validation, the script trains the YOLO11 model using the dataset
+defined in `dataset/data.yaml`.
+
+Run training with:
 
 ```powershell
 cd "1. Object Detection"
-.\.venv\Scripts\python.exe -c "import torch; print(torch.cuda.is_available())"
+.\.venv\Scripts\python.exe train.py
 ```
 
-Expected GPU result: `True` when CUDA-enabled PyTorch is installed. CPU training
-also works but is slower.
+### Prediction
 
-## Training Configuration
+Prediction is handled by `predict.py`. It loads the best trained checkpoint and
+runs inference on the test images.
 
-The current run was launched by `train.py` and saved to `runs/detect/train/`.
-The full resolved configuration is saved in `runs/detect/train/args.yaml`.
+Run prediction with:
+
+```powershell
+cd "1. Object Detection"
+.\.venv\Scripts\python.exe predict.py
+```
+
+Annotated prediction images are saved in:
+
+```text
+runs/detect/predict/
+```
+
+## 5. Training Configuration
+
+The current training run was saved in `runs/detect/train/`. The full resolved
+training configuration is also available in `runs/detect/train/args.yaml`.
 
 | Setting | Value |
 | --- | --- |
@@ -109,20 +133,26 @@ The full resolved configuration is saved in `runs/detect/train/args.yaml`.
 | Seed | `0` |
 | Output folder | `runs/detect/train/` |
 
-Run training:
+The best trained model checkpoint is:
 
-```powershell
-cd "1. Object Detection"
-.\.venv\Scripts\python.exe train.py
+```text
+runs/detect/train/weights/best.pt
 ```
 
-`train.py` validates the dataset first by calling `check_dataset.py`. If blocking
-errors are found, training stops before any GPU time is spent.
+The final checkpoint from the last completed epoch is:
 
-## Training Results
+```text
+runs/detect/train/weights/last.pt
+```
 
-Primary metric: `mAP50-95(B)`. This is stricter than `mAP50` because it averages
-box quality over multiple IoU thresholds from 0.50 to 0.95.
+For inference and reporting, `best.pt` is the recommended checkpoint because it
+represents the best validation performance.
+
+## 6. Results
+
+The main evaluation metric for this object detection model is `mAP50-95(B)`.
+This metric is stricter than `mAP50` because it averages detection performance
+over multiple IoU thresholds from `0.50` to `0.95`.
 
 | Metric | Best epoch 47 | Final epoch 72 |
 | --- | ---: | ---: |
@@ -131,127 +161,62 @@ box quality over multiple IoU thresholds from 0.50 to 0.95.
 | mAP50 (B) | 0.8169 | 0.8002 |
 | mAP50-95 (B) | 0.6442 | 0.6379 |
 
-The best checkpoint is:
+The best validation result was achieved at epoch `47`, with:
 
 ```text
-runs/detect/train/weights/best.pt
+mAP50-95(B) = 0.6442
 ```
 
-Use `best.pt` for inference unless you specifically need the final checkpoint
-`last.pt`. Both checkpoint files are about `5.22 MB`.
+The current prediction output contains 30 annotated test images in
+`runs/detect/predict/`.
 
-## Result Figures
+## 7. Result Images
 
-Training curves:
+The following result images should be included in the Word documentation:
 
-![Training results](runs/detect/train/results.png)
+| Result figure | File path | Purpose |
+| --- | --- | --- |
+| Training curves | `runs/detect/train/results.png` | Shows training and validation loss/metric trends |
+| Confusion matrix | `runs/detect/train/confusion_matrix.png` | Shows class-level prediction errors |
+| Normalized confusion matrix | `runs/detect/train/confusion_matrix_normalized.png` | Shows class-level errors as normalized values |
+| Precision-recall curve | `runs/detect/train/BoxPR_curve.png` | Shows the precision and recall tradeoff |
+| Label distribution | `runs/detect/train/labels.jpg` | Shows class and bounding-box distribution |
+| Validation predictions | `runs/detect/train/val_batch*_pred.jpg` | Shows validation images with predicted boxes |
+| Test predictions | `runs/detect/predict/*.jpg` | Shows final annotated prediction results |
 
-Confusion matrix:
+Recommended images to insert in the Word file:
 
-![Confusion matrix](runs/detect/train/confusion_matrix.png)
-
-Normalized confusion matrix:
-
-![Normalized confusion matrix](runs/detect/train/confusion_matrix_normalized.png)
-
-Precision-recall curve:
-
-![Box precision-recall curve](runs/detect/train/BoxPR_curve.png)
-
-Additional curves available in the run folder:
-
-| File | Meaning |
-| --- | --- |
-| `BoxP_curve.png` | Precision at confidence thresholds |
-| `BoxR_curve.png` | Recall at confidence thresholds |
-| `BoxF1_curve.png` | F1 score at confidence thresholds |
-| `BoxPR_curve.png` | Precision-recall tradeoff |
-| `labels.jpg` | Label distribution and bounding-box distribution |
-| `train_batch*.jpg` | Augmented training batch samples |
-| `val_batch*_labels.jpg` | Validation images with ground-truth labels |
-| `val_batch*_pred.jpg` | Validation images with model predictions |
-
-## Inference
-
-The inference script uses:
-
-| Setting | Value |
-| --- | --- |
-| Weights | `runs/detect/train/weights/best.pt` |
-| Source | `dataset/test/images` |
-| Confidence threshold | 0.25 |
-| Image size | 640 |
-| Output folder | `runs/detect/predict/` |
-
-Run prediction:
-
-```powershell
-cd "1. Object Detection"
-.\.venv\Scripts\python.exe predict.py
+```text
+runs/detect/train/results.png
+runs/detect/train/confusion_matrix.png
+runs/detect/train/confusion_matrix_normalized.png
+runs/detect/train/BoxPR_curve.png
+runs/detect/train/val_batch0_pred.jpg
+runs/detect/predict/03519_Ford-F-150-Regular-Cab-2012_jpg.rf.7196f729cf4ab280a81463d73f2a1293.jpg
 ```
 
-The current local prediction folder contains:
+When writing captions, describe what each image shows. For example:
 
-| Output | Count | Location |
-| --- | ---: | --- |
-| Annotated images | 30 | `runs/detect/predict/` |
-| Prediction text files | 0 | Not generated by the current `predict.py` settings |
-
-The detection script saves annotated images only. If you need YOLO-format
-prediction text files, add `save_txt=True` and `save_conf=True` to the
-`model.predict(...)` call in `predict.py`.
-
-## How To Read The Metrics
-
-| Metric | Meaning |
-| --- | --- |
-| Precision | Of the boxes predicted by the model, how many were correct |
-| Recall | Of the real labeled objects, how many the model found |
-| mAP50 | Mean average precision at IoU 0.50 |
-| mAP50-95 | Mean average precision averaged across IoU 0.50 to 0.95 |
-| Box loss | Bounding-box localization loss; lower is better |
-| Class loss | Classification loss for detected boxes; lower is better |
-| DFL loss | Distribution focal loss used for box quality; lower is better |
-
-For this project, `mAP50-95(B)` is the main score to report. `mAP50` is useful
-for a looser view of object localization performance.
-
-## Dataset Validation
-
-Run the checker directly:
-
-```powershell
-cd "1. Object Detection"
-.\.venv\Scripts\python.exe check_dataset.py
+```text
+Figure 1. Training results showing loss and detection metrics across epochs.
+Figure 2. Confusion matrix showing correct and incorrect predictions per class.
+Figure 3. Sample test image with predicted bounding boxes generated by the model.
 ```
 
-The checker verifies:
+## 8. Conclusion
 
-- `data.yaml` exists and defines class names.
-- `train`, `valid`, and `test` splits have matching `images/` and `labels/` folders.
-- Every image has a matching label file.
-- Label files have valid YOLO detection rows: `class x_center y_center width height`.
-- Class ids are valid and coordinates are normalized from `0` to `1`.
-- Every class appears in the annotations.
+This project successfully trained a YOLO11 object detection model for detecting
+vehicle parts across 9 classes. The dataset was checked before training and was
+found to be structurally clean, with no missing labels or orphan label files.
 
-## Troubleshooting
+The best model achieved an `mAP50-95(B)` score of `0.6442` at epoch `47`, with
+precision of `0.8329` and recall of `0.7587`. These results show that the model
+can detect multiple vehicle parts with good overall performance, especially for
+classes with stronger representation in the dataset such as Tire, Window,
+Side-Mirror, Headlights, and Windshield.
 
-| Problem | Fix |
-| --- | --- |
-| CUDA out of memory | Lower `BATCH` from 8 to 4 or 2 in `train.py`. |
-| Training is too slow | Use GPU device `0`; reduce `IMG_SIZE` to 512 if acceptable. |
-| Bad or missing predictions | Confirm `runs/detect/train/weights/best.pt` exists before running `predict.py`. |
-| Dataset validation fails | Fix the exact file or label path reported by `check_dataset.py`. |
-| Metrics look high but examples look wrong | Inspect `val_batch*_pred.jpg` and both confusion matrix files. |
-
-## Reproducible Workflow
-
-```powershell
-cd "1. Object Detection"
-.\.venv\Scripts\python.exe check_dataset.py
-.\.venv\Scripts\python.exe train.py
-.\.venv\Scripts\python.exe predict.py
-```
-
-Report the model using the best-validation result: `mAP50-95(B) = 0.6442` at
-epoch `47`.
+The trained checkpoint `runs/detect/train/weights/best.pt` was used for
+inference, and the prediction results were saved as annotated images in
+`runs/detect/predict/`. For future improvement, the model could be trained with
+more images for underrepresented classes such as Rear Window, Tail Lights, and
+Plate to improve class balance and detection reliability.
