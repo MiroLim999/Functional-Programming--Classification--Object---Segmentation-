@@ -21,13 +21,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 # Config -- edit these to match your setup
 # ---------------------------------------------------------------------------
 DATA_YAML = SCRIPT_DIR / "dataset" / "data.yaml"  # data.yaml from your Roboflow export
-MODEL = str(SCRIPT_DIR / "yolo11m.pt")  # medium model: more accurate, heavier on VRAM
+MODEL = str(SCRIPT_DIR / "yolo11n.pt")  # nano model: best fit for a 6 GB laptop GPU
 EPOCHS = 100
 IMG_SIZE = 640
-BATCH = 4                         # medium on 6 GB VRAM; lower to 2 if you hit OOM
+BATCH = 8                         # keep small for 6 GB VRAM; lower to 4 if OOM
 PATIENCE = 25                     # early-stopping patience
 DEVICE = 0                        # 0 = first GPU, or "cpu"
-RUN_NAME = "train_yolo11m"        # output folder name under runs/detect/
+RUN_NAME = "train"                # output folder name under runs/detect/
 # ---------------------------------------------------------------------------
 
 
@@ -63,7 +63,10 @@ def main():
     )
 
     # Validate the best checkpoint on the validation split
-    metrics = model.val()
+    metrics = model.val(
+        project=str(SCRIPT_DIR / "runs" / "detect"),
+        name="val",
+    )
     print("\nValidation summary:")
     print(f"  mAP50-95: {metrics.box.map:.4f}")
     print(f"  mAP50:    {metrics.box.map50:.4f}")
